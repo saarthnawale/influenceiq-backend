@@ -32,9 +32,9 @@ router.get("/check-fake/:handle", async (req, res) => {
   const handle = req.params.handle.replace("@", "");
   const token = process.env.APIFY_TOKEN;
   try {
-    const runRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/runs?token=${token}`, {
+    const runRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-profile-scraper/runs?token=${token}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ directUrls: [`https://www.instagram.com/${handle}/`], resultsType: "details", resultsLimit: 1 }),
+      body: JSON.stringify({ directUrls: [`https://www.instagram.com/${handle}/`], resultsLimit: 1 }),
     });
     const runData = await runRes.json();
     const runId = runData.data?.id;
