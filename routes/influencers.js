@@ -140,5 +140,52 @@ router.delete("/:id", async (req, res) => {
     res.status(500).json({ error: "Failed to remove influencer." });
   }
 });
+// ─── GET /influencers/check-fake/:handle ─────────────────────
+router.get("/check-fake/:handle", async (req, res) => {
+  const handle = req.params.handle.replace("@", "");
+  const token = process.env.APIFY_TOKEN;
+  try {
+    // Start Apify run
+    const runRes = await fetch(
+      `https://api.apify.com/v2/acts/apify~instagram-scraper/runs?token=${token}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          directUrls: [`https://www.instagram.com/${handle}/`],
+          resultsType: "details",
+          resultsLimit: 1,
+        }),
+      }
+    );
+    const runData = await runRes.json();
+    const runId = runData.data?.id;
+    if (!runId) return res.status(500).json({ error: "Failed to start scraper." });
+
+    // Poll for result (max 30 seconds)
+    let profile = null;
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 3000));
+      const dataRes = await fetch(
+        `https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${token}`
+      );
+      const items = await dataRes.json();
+      if (items.length > 0) { profile = items[0]; break; }
+    }
+
+    if (!profile) return res.status(404).json({ error: "Profile not found or scraper timed out." });
+
+    const followers = profile.followersCount || 0;
+    const following = profile.followingCount || 0;
+    const posts = profile.postsCount || 0;
+    const avgLikes = profile.latestPosts?.reduce((a, p) => a + (p.likesCount || 0), 0) / (profile.latestPosts?.length || 1);
+    const avgComments = profile.latestPosts?.reduce((a, p) => a + (p.commentsCount || 0), 0) / (profile.latestPosts?.length || 1);
+    const engRate = followers > 0 ? ((avgLikes + avgComments) / followers) * 100 : 0;
+
+    let score = 100;
+    let flags = [];
+    if (engRate < 0.5) { score -= 40; flags.push("⚠️ Engagement rate below 0.5% — very suspicious"); }
+    else if (engRate < 1) { score -= 20; flags.push("⚠️ Engagement rate below 1% — low"); }
+    else flags
 
 module.exports = router;
